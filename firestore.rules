@@ -1,0 +1,101 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: users
+    // Fields: uid, fullName, email, role, wilaya, phoneNumber, level, subjects, levels, proofOfCompetence, ccp, edahabia, walletBalance, totalEarnings, premiumPackage, premiumExpiry, rating, ratingCount, createdAt
+    
+    // Collection: courses
+    // Fields: id, teacherId, title, description, subject, level, semester, monthNumber, contentType, contentUrl, isFree, publishedAt
+    
+    // Collection: subscriptions
+    // Fields: id, studentId, teacherId, type, monthNumber, amount, startDate, endDate, status
+    
+    // Collection: groups
+    // Fields: id, teacherId, name, description, createdAt
+    
+    // Collection: transactions
+    // Fields: id, userId, type, amount, description, status, createdAt
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "n2007hcr7@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isTeacher() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+
+    function hasValidRole(role) {
+      return role in ['student', 'teacher', 'admin'];
+    }
+
+    function isValidUser(data) {
+      return data.fullName is string && data.fullName.size() > 0 && data.fullName.size() < 100 &&
+             hasValidRole(data.role) &&
+             data.wilaya is string &&
+             (data.role != 'teacher' || (data.ccp is string || data.edahabia is string));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role != 'admin';
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role) || isAdmin();
+    }
+
+    match /courses/{courseId} {
+      allow read: if isAuthenticated();
+      allow create: if isTeacher() && request.resource.data.teacherId == request.auth.uid;
+      allow update, delete: if isTeacher() && resource.data.teacherId == request.auth.uid;
+    }
+
+    match /subscriptions/{subId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.studentId || request.auth.uid == resource.data.teacherId);
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+    }
+
+    match /groups/{groupId} {
+      allow read: if isAuthenticated();
+      allow create: if isTeacher() && request.resource.data.teacherId == request.auth.uid;
+      allow update, delete: if isTeacher() && resource.data.teacherId == request.auth.uid;
+      
+      match /exercises/{exerciseId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isTeacher() && get(/databases/$(database)/documents/groups/$(groupId)).data.teacherId == request.auth.uid;
+        
+        match /submissions/{subId} {
+          allow read: if isAuthenticated() && (request.auth.uid == resource.data.studentId || isTeacher());
+          allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+        }
+      }
+    }
+
+    match /private_chats/{chatId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.studentId || request.auth.uid == resource.data.teacherId);
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+    }
+
+    match /transactions/{transId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow create: if isAdmin(); // Only system/admin can create transactions for security
+    }
+  }
+}

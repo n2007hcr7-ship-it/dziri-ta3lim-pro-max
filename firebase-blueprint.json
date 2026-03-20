@@ -1,0 +1,174 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A student or teacher in the platform.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["student", "teacher", "admin"] },
+        "wilaya": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "level": { "type": "string", "enum": ["primary", "middle", "secondary", "university"] },
+        "subjects": { "type": "array", "items": { "type": "string" } },
+        "levels": { "type": "array", "items": { "type": "string" } },
+        "proofOfCompetence": { "type": "string" },
+        "ccp": { "type": "string" },
+        "edahabia": { "type": "string" },
+        "walletBalance": { "type": "number" },
+        "totalEarnings": { "type": "number" },
+        "premiumPackage": { "type": "string", "enum": ["none", "bronze", "silver", "gold"] },
+        "premiumExpiry": { "type": "string", "format": "date-time" },
+        "rating": { "type": "number" },
+        "ratingCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "fullName", "role", "wilaya"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "A lesson published by a teacher.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "subject": { "type": "string" },
+        "level": { "type": "string" },
+        "semester": { "type": "integer" },
+        "monthNumber": { "type": "integer" },
+        "contentType": { "type": "string", "enum": ["video", "pdf", "quiz", "mixed"] },
+        "contentUrl": { "type": "string" },
+        "isFree": { "type": "boolean" },
+        "publishedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["teacherId", "title", "subject", "level", "monthNumber"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "A student's subscription to a teacher's content.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "type": { "type": "string", "enum": ["monthly", "quarterly", "yearly", "late_access"] },
+        "monthNumber": { "type": "integer" },
+        "amount": { "type": "number" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "expired"] }
+      },
+      "required": ["studentId", "teacherId", "type", "amount", "startDate"]
+    },
+    "Group": {
+      "title": "Group",
+      "description": "A private group (Fouj) for a teacher's subscribers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["teacherId", "name"]
+    },
+    "Exercise": {
+      "title": "Exercise",
+      "description": "An exercise posted in a group.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "title": { "type": "string" },
+        "contentUrl": { "type": "string" },
+        "deadline": { "type": "string", "format": "date-time" },
+        "correctionUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["groupId", "title", "deadline"]
+    },
+    "Submission": {
+      "title": "Submission",
+      "description": "A student's submission for an exercise.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "exerciseId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "contentUrl": { "type": "string" },
+        "submittedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["exerciseId", "studentId", "contentUrl"]
+    },
+    "PrivateChat": {
+      "title": "PrivateChat",
+      "description": "A paid private chat session.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "amount": { "type": "number" },
+        "durationMinutes": { "type": "integer" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "expired"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "teacherId", "amount", "durationMinutes"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A financial transaction in the platform.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["deposit", "withdrawal", "payment", "earning"] },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "completed", "failed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "amount", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles."
+    },
+    "/courses/{courseId}": {
+      "schema": "Course",
+      "description": "Courses published by teachers."
+    },
+    "/subscriptions/{subId}": {
+      "schema": "Subscription",
+      "description": "Student subscriptions."
+    },
+    "/groups/{groupId}": {
+      "schema": "Group",
+      "description": "Teacher groups."
+    },
+    "/groups/{groupId}/exercises/{exerciseId}": {
+      "schema": "Exercise",
+      "description": "Exercises in a group."
+    },
+    "/groups/{groupId}/exercises/{exerciseId}/submissions/{subId}": {
+      "schema": "Submission",
+      "description": "Student submissions for exercises."
+    },
+    "/private_chats/{chatId}": {
+      "schema": "PrivateChat",
+      "description": "Private chat sessions."
+    },
+    "/transactions/{transId}": {
+      "schema": "Transaction",
+      "description": "Wallet transactions."
+    }
+  }
+}
