@@ -10,6 +10,9 @@ import Offline from './pages/Offline';
 import Wallet from './pages/Wallet';
 import Profile from './pages/Profile';
 import TeacherDashboard from './pages/TeacherDashboard';
+import LiveSessions from './pages/LiveSessions';
+import LiveRoom from './pages/LiveRoom';
+import Archive from './pages/Archive';
 export default function App() {
   return (
     <Router>
@@ -27,6 +30,9 @@ export default function App() {
           <Route path="/courses" element={<Courses />} />
           <Route path="/groups" element={<Groups />} />
           {/* صفحات إضافية */}
+          <Route path="/live-sessions" element={<LiveSessions />} />
+          <Route path="/live/:sessionId" element={<LiveRoom />} />
+          <Route path="/archive" element={<Archive />} />
 <Route path="/offline" element={<Offline />} />
 <Route path="/wallet" element={<Wallet />} />
 <Route path="/profile" element={<Profile />} />

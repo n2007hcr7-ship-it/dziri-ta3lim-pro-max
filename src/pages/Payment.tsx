@@ -33,119 +33,55 @@ useEffect(() => {
     fetchTeachers();
   }, []);
 
-  const handleUpload = async () => {
-    if (!file) {
-      alert("من فضلك اختر صورة وصل الدفع أولاً");
-      return;
-    }
-    
-    setLoading(true);
+  const handlePayment = async (teacherId) => {
+    // القيم الثابتة (يمكنك جلبها لاحقاً من قاعدة البيانات)
+    const price = 2000;
+    const teacherShare = 1400; // 70%
+    const teacherChargilyId = "CH_ACC_XXXXXXXXXXXX"; // معرف الأستاذ الحقيقي
+
     try {
-      // 1. رفع الصورة إلى Storage
-      const storageRef = ref(storage, `receipts/ccp_${Date.now()}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-// 1. الحصول على رابط الصورة المرفوعة
-      const downloadURL = await getDownloadURL(storageRef);
-
-      // 2. الكود الجديد لإرسال البيانات إلى n8n (أضفه هنا)
-      const webhookUrl = 'https://hbza3im07.app.n8n.cloud/webhook-test/09e1ff1a-04b2-470b-849c-b82eddbbf2c3';
-      
-      const paymentData = {
-        studentName: "أنس (تجربة)", // لاحقاً سنربطها باسم المستخدم المسجل
-        totalAmount: 2000,           // سعر الاشتراك (يمكنك تغييره)
-        myCommission: 2000 * 0.3,    // حصتك كصاحب منصة (600 دج)
-        teacherShare: 2000 * 0.7,    // حصة الأستاذ (1400 دج)
-       teacherName: teacherName,
-      receiptUrl: downloadURL,
-      status: "pending",
-      date: new Date().toLocaleString('ar-DZ')
-    };
-
-    await addDoc(collection(db, "payments"), paymentData);
-
-      await fetch(webhookUrl, {
-        
+      const response = await fetch('https://pay.chargily.net/backoffice/api/v2/checkouts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(paymentData)
+        headers: {
+          'Authorization': `Bearer test_sk_wkEO4mDOro6bWK6oVgcMHFSlYJUcmVbG1PKlZ743`, // مفتاحك السري
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          amount: price,
+          currency: 'dzd',
+          success_url: 'https://anas-dz.github.io/dziri-ta3lim-pro-max/#/success',
+          metadata: [
+            {
+              "account_id": teacherChargilyId,
+              "amount": teacherShare
+            }
+          ]
+        })
       });
 
-
-      alert("تم إرسال الوصل بنجاح! سيتم التحقق وتفعيل حسابك.");
-      // 2. حفظ الطلب في Firestore لكي تراه في لوحة التحكم
-      await addDoc(collection(db, "payment_requests"), {
-        receiptUrl: url,
-        status: "pending",
-        createdAt: new Date(),
-        type: "CCP_PAYMENT"
-      });
-
-      alert("تم إرسال وصل الدفع بنجاح! سيتم التحقق من حسابك وتفعيله قريباً.");
-      setFile(null);
-    } catch (error) {
-      console.error(error);
-      alert("حدث خطأ أثناء الرفع، تأكد من اتصال الإنترنت.");
-    }
-    setLoading(false);
-    <div style={{ marginTop: '20px', textAlign: 'right' }}>
-        <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-          اختر الأستاذ:
-        </label>
-        <select 
-          required
-          style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ccc', direction: 'rtl' }}
-          value={teacherName}
-          onChange={(e) => setTeacherName(e.target.value)}
-        >
-          <option value="">-- الأساتذة المتاحون حالياً --</option>
-          {teachers.map((t: any) => (
-            <option key={t.id} value={t.name}>{t.name}</option>
-          ))}
-        </select>
-      </div>
-  };
-
-  return (
-    <div style={{ padding: '20px', direction: 'rtl', maxWidth: '600px', margin: '0 auto' }}>
-      <h2 style={{ color: '#2d5a27' }}>تفعيل الحساب عبر بريد الجزائر (CCP)</h2>
+      const data = await response.json();
       
-      <div style={{ background: '#f9f9f9', padding: '20px', borderRadius: '10px', border: '1px solid #ddd' }}>
-        <p>يرجى إرسال مبلغ الاشتراك إلى الحساب التالي:</p>
-        <p><b>الاسم الكامل:</b> {ccpInfo.name}</p>
-        <p><b>رقم الحساب (CCP):</b> {ccpInfo.account} <b>المفتاح:</b> {ccpInfo.key}</p>
-        <p><b>رقم الـ RIP:</b> <span style={{ letterSpacing: '1px' }}>{ccpInfo.rip}</span></p>
-      </div>
-
-      <div style={{ marginTop: '30px', textAlign: 'center' }}>
-        <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
-          بعد الدفع، قم بتصوير الوصل ورفعه هنا:
-        </label>
-        <input 
-          type="file" 
-          onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)} 
-          accept="image/*"
-          style={{ marginBottom: '15px' }}
-        />
-        <br />
-        <button 
-          onClick={handleUpload} 
-          disabled={loading}
-          style={{
-            background: '#2d5a27',
-            color: 'white',
-            padding: '10px 25px',
-            borderRadius: '5px',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '16px'
-          }}
-        >
-          {loading ? "جاري إرسال البيانات..." : "تأكيد وإرسال الوصل"}
-        </button>
-      </div>
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url; // توجيه الطالب للدفع
+      } else {
+        console.error("خطأ من شارجيلي:", data);
+        alert("فشل إنشاء رابط الدفع.");
+      }
+    } catch (error) {
+      console.error("خطأ في الاتصال:", error);
+      alert("حدث خطأ، يرجى المحاولة لاحقاً.");
+    }
+  };
+ 
+  // --- هذا الجزء المفقود في صورتك ---
+  return (
+    <div className="payment-container">
+      <h2>إتمام عملية الشراء</h2>
+      <button onClick={() => handlePayment("teacher_id")}>
+        ادفع الآن (2000 دج)
+      </button>
     </div>
   );
-};
+}; // <--- هذا القوس يغلق السطر رقم 6
 
 export default Payment;

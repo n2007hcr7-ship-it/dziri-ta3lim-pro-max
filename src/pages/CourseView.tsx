@@ -198,7 +198,54 @@ const CourseView: React.FC = () => {
             </div>
           </div>
         </div>
+      {/* 📋 قائمة دروس الدورة */}
+          <div className="dz-card p-0 overflow-hidden bg-[#1a1a1a] border border-gray-800 shadow-lg">
+            <div className="p-4 border-b border-gray-800 bg-[#252525] flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-sm text-dz-green">محتوى الدورة</h3>
+                <p className="text-[10px] text-gray-400 mt-1">{course.lessons?.length || 0} دروس مسجلة</p>
+              </div>
+              <BookOpen size={18} className="text-gray-500" />
+            </div>
 
+            <div className="flex flex-col max-h-[400px] overflow-y-auto custom-scrollbar">
+              {course.lessons?.map((lesson: any, index: number) => {
+                // التحقق من صلاحية الوصول: الدرس الأول مجاني أو الطالب لديه اشتراك
+                const isLocked = !hasAccess && index > 0 && !lesson.isFree;
+                const isActive = course.contentUrl === lesson.videoUrl;
+
+                return (
+                  <button
+                    key={index}
+                    disabled={isLocked}
+                    onClick={() => {
+                      // هنا نقوم بتحديث رابط الفيديو المعروض في الصفحة
+                      // ملاحظة: قد تحتاج لتحديث الـ State الخاص بالكورس أو الفيديو هنا
+                    }}
+                    className={`w-full flex items-center gap-3 p-4 transition-all border-b border-gray-800/50 text-right
+                      ${isActive ? 'bg-dz-green/10 border-r-2 border-r-dz-green' : 'hover:bg-white/5'}
+                      ${isLocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  >
+                    <div className="flex-shrink-0">
+                      {isLocked ? (
+                        <Lock size={14} className="text-gray-600" />
+                      ) : isActive ? (
+                        <Play size={14} className="text-dz-green fill-dz-green" />
+                      ) : (
+                        <CheckCircle size={14} className="text-gray-500" />
+                      )}
+                    </div>
+                    <div className="flex flex-col items-start overflow-hidden">
+                      <span className={`text-xs truncate w-full ${isActive ? 'text-dz-green font-bold' : 'text-gray-300'}`}>
+                        {index + 1}. {lesson.title}
+                      </span>
+                      <span className="text-[9px] text-gray-500 mt-1">المدة: {lesson.duration || "12:00"}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Teacher Card */}
