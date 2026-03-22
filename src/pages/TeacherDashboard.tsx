@@ -133,10 +133,8 @@ const [maxStudents, setMaxStudents] = useState(50);
           <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#2d5a27' }}>{totalEarnings.toLocaleString()} دج</p>
         </div>
       </div>
-      // 1. أضف هذا المتغير في أعلى الدالة (State) لحفظ السعر المكتوب
 const [chatPrice, setChatPrice] = useState(teacherData?.chatPrice || 1000);
 
-// 2. أضف دالة الحفظ لFirestore
 const saveChatPrice = async () => {
   if (!chatPrice || chatPrice < 100) {
     alert("يرجى إدخال سعر صالح (على الأقل 100 دج)");
