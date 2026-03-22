@@ -24,9 +24,9 @@ const TeacherDashboard = () => {
 
   return (
     // هنا يبدأ كود الواجهة (divs) كما هو
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [accessCode, setAccessCode] = useState('');
-  const [payments, setPayments] = useState<any[]>([]);
+const [isLoggedIn, setIsLoggedIn] = useState(false);
+const [accessCode, setAccessCode] = useState('');
+const [payments, setPayments] = useState<any[]>([]);
   const [teacherName, setTeacherName] = useState('');
 const [liveTitle, setLiveTitle] = useState('');
 const [liveTicketPrice, setLiveTicketPrice] = useState(500);
