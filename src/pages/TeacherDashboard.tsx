@@ -1,348 +1,238 @@
-import { useState } from 'react';
-import { db, storage } from '../firebase'; // تأكد من تصدير storage من ملف firebase.ts
+import React, { useState, useEffect } from 'react';
+import { db, storage } from '../firebase';
+import { collection, addDoc, doc, updateDoc, arrayUnion, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { PlusCircle, Upload, X } from 'lucide-react';
-  // ✅ هذا هو المكان الصحيح (تحت السطر 6 مباشرة)
-const TeacherDashboard = () => {
-  const [chatPrice, setChatPrice] = useState(teacherData?.chatPrice || 1000);
 
-  const saveChatPrice = async () => {
-    if (!chatPrice || chatPrice < 100) {
-      alert("يرجى إدخال سعر صالح (على الأقل 100 دج)");
-      return;
-    }
-    try {
-      const teacherRef = doc(db, 'teachers', teacherData.id);
-      await updateDoc(teacherRef, { chatPrice: Number(chatPrice) });
-      alert("!تم حفظ سعر الاشتراك الجديد بنجاح");
-    } catch (err) {
-      console.error("خطأ في حفظ السعر:", err);
-      alert("حدث خطأ أثناء حفظ السعر");
-    }
-  };
-
-  return (
-    // هنا يبدأ كود الواجهة (divs) كما هو
-const [isLoggedIn, setIsLoggedIn] = useState(false);
-const [accessCode, setAccessCode] = useState('');
-const [payments, setPayments] = useState<any[]>([]);
-  const [teacherName, setTeacherName] = useState('');
-const [liveTitle, setLiveTitle] = useState('');
-const [liveTicketPrice, setLiveTicketPrice] = useState(500);
-const [maxStudents, setMaxStudents] = useState(50);
-  // يمكنك تغيير هذا الكود السري لاحقاً أو إعطاء كود لكل أستاذ
-  const SECRET_CODE = "DZ-2026"; 
-
-  // حالات الرفع (Upload States)
+const TeacherDashboard = ({ teacherData }: { teacherData: any }) => {
+  // --- 1. الحالات (States) ---
+  const [teacherName, setTeacherName] = useState(teacherData?.name || '');
+  const [liveTitle, setLiveTitle] = useState('');
+  const [liveTicketPrice, setLiveTicketPrice] = useState(500);
+  const [maxStudents, setMaxStudents] = useState(50);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [lessonTitle, setLessonTitle] = useState('');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [chatPrice, setChatPrice] = useState(teacherData?.chatPrice || 1000);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [accessCode, setAccessCode] = useState('');
+  
+  // حالات البيانات والإحصائيات
+  const [payments, setPayments] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]); // أضفتها هنا لتختار الكورس عند الرفع
+  const [totalEarnings, setTotalEarnings] = useState(0);
+  const [studentsCount, setStudentsCount] = useState(0);
 
-  // دالة الرفع
+  const SECRET_CODE = "DZ-2026";
+
+  // --- 2. جلب البيانات عند التحميل ---
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!teacherData?.id) return;
+      try {
+        // 1. جلب الكورسات الخاصة بالأستاذ لتظهر في القائمة
+        const qCourses = query(collection(db, 'courses'), where('teacherId', '==', teacherData.id));
+        const coursesSnap = await getDocs(qCourses);
+        setCourses(coursesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+        // 2. جلب المدفوعات والإحصائيات
+        const qPayments = query(collection(db, 'payments'), where('teacherId', '==', teacherData.id));
+        const paymentsSnap = await getDocs(qPayments);
+        const pData = paymentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setPayments(pData);
+
+        // حساب الأرباح
+        const total = pData.reduce((acc, curr: any) => acc + (Number(curr.amount) || 0), 0);
+        setTotalEarnings(total);
+        setStudentsCount(pData.length);
+      } catch (err) { console.error("Data Fetch Error:", err); }
+    };
+    fetchData();
+  }, [teacherData]);
+
+  // --- 3. الدوال (Logic) ---
+
+  const saveChatPrice = async () => {
+    try {
+      const teacherRef = doc(db, 'teachers', teacherData.id);
+      await updateDoc(teacherRef, { chatPrice: Number(chatPrice) });
+      alert("✅ تم تحديث سعر الاشتراك!");
+    } catch (err) { alert("❌ خطأ في الحفظ"); }
+  };
+
   const handleUploadLesson = async () => {
-    if (!videoFile || !lessonTitle || !selectedCourseId) return alert("يرجى ملء جميع الحقول");
-    
+    if (!videoFile || !lessonTitle || !selectedCourseId) return alert("يرجى اختيار الكورس وعنوان الدرس");
     setUploading(true);
     const storageRef = ref(storage, `courses/${selectedCourseId}/lessons/${Date.now()}_${videoFile.name}`);
     const uploadTask = uploadBytesResumable(storageRef, videoFile);
 
     uploadTask.on('state_changed', 
-      (snapshot) => {
-        setProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-      }, 
-      (error) => {
-        console.error(error);
-        setUploading(false);
-      },
+      (snapshot) => setProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+      (error) => { alert("خطأ في الرفع"); setUploading(false); },
       async () => {
         const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-        const courseRef = doc(db, "courses", selectedCourseId);
-        
+        const courseRef = doc(db, 'courses', selectedCourseId);
         await updateDoc(courseRef, {
-          lessons: arrayUnion({
-            title: lessonTitle,
-            videoUrl: downloadURL,
-            duration: "15:00", // قيمة افتراضية
-            createdAt: new Date().toISOString()
-          })
+          lessons: arrayUnion({ title: lessonTitle, videoUrl: downloadURL, createdAt: new Date().toISOString() })
         });
-
-        alert("تم إضافة الدرس بنجاح!");
-        setUploading(false);
-        setIsModalOpen(false);
-        setLessonTitle('');
-        setVideoFile(null);
+        alert("🎉 تم رفع الدرس بنجاح!");
+        setUploading(false); setIsModalOpen(false); setLessonTitle('');
       }
     );
   };
-  const handleLogin = () => {
-    if (accessCode === SECRET_CODE) {
-      setIsLoggedIn(true);
-    } else {
-      alert("عذراً، الكود السري غير صحيح!");
-    }
+
+  const handleCreateLive = async () => {
+    if (!liveTitle) return alert("عنوان البث مطلوب");
+    try {
+      await addDoc(collection(db, 'lives'), {
+        title: liveTitle, teacherId: teacherData.id, teacherName: teacherData.name,
+        price: Number(liveTicketPrice), maxStudents: Number(maxStudents),
+        status: 'scheduled', createdAt: new Date().toISOString()
+      });
+      alert("📺 تم جدولة البث المباشر!");
+      setLiveTitle('');
+    } catch (err) { console.error(err); }
   };
 
-  const fetchStats = async () => {
-    const q = query(collection(db, "payments"), where("teacherName", "==", teacherName));
-    const querySnapshot = await getDocs(q);
-    const data = querySnapshot.docs.map(doc => doc.data());
-    setPayments(data);
-  };
-
-  const totalEarnings = payments.length * 1400; // حصة الأستاذ 70%
-
+  // --- 4. واجهة تسجيل الدخول ---
   if (!isLoggedIn) {
     return (
-      <div style={{ padding: '50px', textAlign: 'center', direction: 'rtl' }}>
-        <h2>🔐 دخول الأساتذة فقط</h2>
-        <input 
-          type="password" 
-          placeholder="أدخل الكود السري الخاص بك..." 
-          value={accessCode}
-          onChange={(e) => setAccessCode(e.target.value)}
-          style={{ padding: '12px', width: '250px', borderRadius: '8px', border: '1px solid #ccc' }}
-        />
-        <br /><br />
-        <button onClick={handleLogin} style={{ padding: '10px 30px', background: '#2d5a27', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
-          دخول
-        </button>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f0f2f5', fontFamily: 'Arial' }}>
+        <div style={{ background: '#fff', padding: '40px', borderRadius: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', textAlign: 'center' }}>
+          <h2 style={{ color: '#1a73e8', marginBottom: '20px' }}>بوابة إدارة الأساتذة</h2>
+          <input type="password" placeholder="أدخل كود الوصول السري" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '10px', border: '1px solid #ddd', textAlign: 'center' }} />
+          <button onClick={() => accessCode === SECRET_CODE ? setIsLoggedIn(true) : alert("الكود خاطئ")} style={{ width: '100%', padding: '12px', background: '#1a73e8', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>دخول للنظام</button>
+        </div>
       </div>
     );
   }
-  <button 
-  onClick={() => {
-    setSelectedCourseId(course.id);
-    setIsModalOpen(true);
-  }}
-  className="p-2 text-dz-green hover:bg-dz-green/10 rounded-lg transition-colors"
-  title="إضافة درس جديد"
->
-  <PlusCircle size={20} />
-</button>
 
+  // --- 5. الواجهة الرئيسية ---
   return (
-    <div style={{ padding: '20px', direction: 'rtl', textAlign: 'right' }}>
-      <h1 style={{ color: '#2d5a27' }}>لوحة تحكم الأستاذ 📊</h1>
-      <p>مرحباً بك، يمكنك البحث عن إحصائياتك باستخدام اسمك المسجل:</p>
+    <div style={{ padding: '30px', maxWidth: '1400px', margin: '0 auto', direction: 'rtl', fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif', background: '#f8f9fa' }}>
       
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
-        <input 
-          type="text" 
-          placeholder="أدخل اسمك الكامل..." 
-          value={teacherName}
-          onChange={(e) => setTeacherName(e.target.value)}
-          style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ddd', flex: 1 }}
-        />
-        <button onClick={fetchStats} style={{ padding: '10px 20px', background: '#2d5a27', color: 'white', border: 'none', borderRadius: '5px' }}>
-          عرض النتائج
-        </button>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-        <div style={{ background: '#f9f9f9', padding: '20px', borderRadius: '10px', border: '1.5px solid #2d5a27' }}>
-          <h3>إجمالي الطلاب</h3>
-          <p style={{ fontSize: '28px', fontWeight: 'bold' }}>{payments.length}</p>
+      {/* رأس الصفحة */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', background: '#fff', padding: '20px', borderRadius: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+        <div>
+          <h1 style={{ margin: 0, color: '#1a73e8', fontSize: '24px' }}>أهلاً بك، أ. {teacherName}</h1>
+          <p style={{ margin: '5px 0 0', color: '#666' }}>لوحة التحكم في الدروس والبث المباشر</p>
         </div>
-        <div style={{ background: '#e8f5e9', padding: '20px', borderRadius: '10px', border: '1.5px solid #2d5a27' }}>
-          <h3>أرباحك المستحقة (دج)</h3>
-          <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#2d5a27' }}>{totalEarnings.toLocaleString()} دج</p>
+        <div style={{ textAlign: 'left' }}>
+          <span style={{ background: '#e8f0fe', color: '#1967d2', padding: '8px 15px', borderRadius: '20px', fontSize: '14px', fontWeight: 'bold' }}>تحديث DZ-2026</span>
         </div>
       </div>
-// ❌ احذف هذا الجزء من مكانه الحالي في الصورة
-const [chatPrice, setChatPrice] = useState(teacherData?.chatPrice || 1000);
 
-const saveChatPrice = async () => {
-    if (!chatPrice || chatPrice < 100) {
-        alert("يرجى إدخال سعر صالح (على الأقل 100 دج)");
-        return;
-    }
-    // ... وباقي كود الـ try والـ catch
-}
-  }
-};
-// متغيرات البث المباشر الجديدة
-  const [liveTitle, setLiveTitle] = useState('');
-  const [liveTicketPrice, setLiveTicketPrice] = useState(500);
-  const [maxStudents, setMaxStudents] = useState(50);
+      {/* بطاقات الإحصائيات */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '25px', marginBottom: '40px' }}>
+        <div style={{ background: 'linear-gradient(135deg, #2e7d32, #4caf50)', color: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 4px 15px rgba(46,125,50,0.2)' }}>
+          <h3 style={{ margin: '0 0 10px', opacity: 0.9 }}>إجمالي أرباحك</h3>
+          <p style={{ fontSize: '32px', fontWeight: 'bold', margin: 0 }}>{totalEarnings.toLocaleString()} دج</p>
+        </div>
+        <div style={{ background: 'linear-gradient(135deg, #1565c0, #1e88e5)', color: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 4px 15px rgba(21,101,192,0.2)' }}>
+          <h3 style={{ margin: '0 0 10px', opacity: 0.9 }}>عدد الطلاب المشتركين</h3>
+          <p style={{ fontSize: '32px', fontWeight: 'bold', margin: 0 }}>{studentsCount} طالب</p>
+        </div>
+      </div>
 
-  // دالة حفظ البث في Firestore
-  const handleCreateLive = async () => {
-    if (!liveTitle) return alert("يرجى كتابة عنوان للبث");
-    try {
-        const { collection, addDoc } = await import('firebase/firestore');
-        await addDoc(collection(db, 'live_sessions'), {
-            title: liveTitle,
-            price: Number(liveTicketPrice),
-            maxStudents: Number(maxStudents),
-            teacherName: teacherName || "أستاذ", // يستخدم teacherName المعرف في السطر 9
-            teacherId: teacherData?.id || "unknown",
-            createdAt: new Date(),
-            status: 'upcoming'
-        });
-        alert("تم جدولة البث بنجاح!");
-        setLiveTitle(''); // تنظيف الحقل بعد الحفظ
-    } catch (error) {
-        console.error("خطأ في الجدولة:", error);
-        alert("حدث خطأ أثناء جدولة البث.");
-    }
-  };
-  {/* --- قسم جدولة بث مباشر جديد --- */}
-<div style={{ 
-    background: '#fff', 
-    padding: '20px', 
-    borderRadius: '15px', 
-    border: '1px solid #e3f2fd', 
-    marginTop: '20px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-}}>
-    <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1565c0', margin: '0 0 15px 0' }}>
-        <span style={{ fontSize: '24px' }}>🎥</span> جدولة حصة بث مباشر جديدة
-    </h3>
-    
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        <input 
-            type="text" 
-            placeholder="عنوان الحصة (مثلاً: مراجعة الدوال النيبيرية)" 
-            value={liveTitle}
-            onChange={(e) => setLiveTitle(e.target.value)}
-            style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '15px' }}
-        />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '30px' }}>
         
-        <div style={{ display: 'flex', gap: '10px' }}>
+        {/* التحكم في البث */}
+        <div style={{ background: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 2px 15px rgba(0,0,0,0.05)' }}>
+          <h3 style={{ marginTop: 0, borderBottom: '2px solid #f0f0f0', paddingBottom: '15px' }}>🎥 جدولة حصة مباشرة</h3>
+          <input type="text" placeholder="عنوان الحصة المباشرة" value={liveTitle} onChange={(e) => setLiveTitle(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '10px', border: '1px solid #ddd' }} />
+          <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
             <div style={{ flex: 1 }}>
-                <label style={{ fontSize: '12px', color: '#666', display: 'block', marginBottom: '5px' }}>سعر التذكرة (دج)</label>
-                <input 
-                    type="number" 
-                    value={liveTicketPrice}
-                    onChange={(e) => setLiveTicketPrice(e.target.value)}
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
-                />
+              <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>سعر التذكرة</label>
+              <input type="number" value={liveTicketPrice} onChange={(e) => setLiveTicketPrice(Number(e.target.value))} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
             </div>
             <div style={{ flex: 1 }}>
-                <label style={{ fontSize: '12px', color: '#666', display: 'block', marginBottom: '5px' }}>أقصى عدد للحضور</label>
-                <input 
-                    type="number" 
-                    value={maxStudents}
-                    onChange={(e) => setMaxStudents(e.target.value)}
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
-                />
+              <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>الحد الأقصى للطلاب</label>
+              <input type="number" value={maxStudents} onChange={(e) => setMaxStudents(Number(e.target.value))} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
             </div>
+          </div>
+          <button onClick={handleCreateLive} style={{ width: '100%', padding: '15px', background: '#1a73e8', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>تأكيد الجدولة ونشرها</button>
         </div>
-    </div>
 
-    <button 
-        onClick={handleCreateLive}
-        style={{ 
-            width: '100%', 
-            marginTop: '20px', 
-            padding: '14px', 
-            background: '#1565c0', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '10px', 
-            cursor: 'pointer', 
-            fontWeight: 'bold',
-            fontSize: '16px'
-        }}
-    >
-        نشر الحصة وتفعيل تذاكر الدخول
-    </button>
-</div>
+        {/* إدارة الدروس */}
+        <div style={{ background: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 2px 15px rgba(0,0,0,0.05)' }}>
+          <h3 style={{ marginTop: 0, borderBottom: '2px solid #f0f0f0', paddingBottom: '15px' }}>📂 رفع المحتوى المسجل</h3>
+          <p style={{ color: '#666', fontSize: '14px' }}>يمكنك رفع فيديوهات جديدة لدروسك هنا وتحديد الكورس التابع لها.</p>
+          <button onClick={() => setIsModalOpen(true)} style={{ width: '100%', padding: '15px', background: '#ff9800', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', marginTop: '20px' }}>+ إضافة درس جديد للمكتبة</button>
+          
+          <div style={{ marginTop: '30px' }}>
+            <h4 style={{ marginBottom: '10px' }}>💰 سعر اشتراك الدردشة</h4>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <input type="number" value={chatPrice} onChange={(e) => setChatPrice(Number(e.target.value))} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+              <button onClick={saveChatPrice} style={{ padding: '10px 20px', background: '#34a853', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>حفظ</button>
+            </div>
+          </div>
+        </div>
 
-// ==========================================
-// 3. اذهب لأسفل في جزء الـ return (مثلاً بعد السطر 66 مباشرة) وأضف هذا الـ HTML:
-// ==========================================
-
-{/* --- القسم الجديد: إعدادات اشتراك الشات --- */}
-<div style={{ background: '#fff', padding: '20px', borderRadius: '15px', border: '1px solid #eee', marginBottom: '20px' }}>
-    <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#333' }}>
-        <span style={{ fontSize: '24px' }}>💬</span> إعدادات اشتراك الشات الشهري
-    </h3>
-    <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
-        حدد السعر الذي تريده مقابل وصول الطلاب للدردشة المباشرة معك لمدة 30 يوماً.
-        (ستحصل على 70% من هذا المبلغ)
-    </p>
-
-    <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-        <input 
-            type="number" 
-            value={chatPrice}
-            onChange={(e) => setChatPrice(e.target.value)}
-            placeholder="أدخل السعر دج..."
-            style={{ 
-                padding: '12px', 
-                borderRadius: '8px', 
-                border: '1.5px solid #ddd', 
-                flex: '1',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                color: '#2d5a27'
-            }} 
-        />
-        <button 
-            onClick={saveChatPrice}
-            style={{ 
-                padding: '12px 25px', 
-                background: '#2d5a27', 
-                color: 'white', 
-                border: 'none', 
-                borderRadius: '8px', 
-                cursor: 'pointer',
-                fontWeight: 'bold'
-            }}
-        >
-            حفظ السعر
-        </button>
-    </div>
-</div>
-{/* -------------------------------------- */}
-
-      <h3 style={{ marginTop: '30px' }}>قائمة العمليات الأخيرة:</h3>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
-          <thead>
-            <tr style={{ background: '#2d5a27', color: 'white' }}>
-              <th style={{ padding: '12px', border: '1px solid #ddd' }}>التاريخ</th>
-              <th style={{ padding: '12px', border: '1px solid #ddd' }}>اسم الطالب</th>
-              <th style={{ padding: '12px', border: '1px solid #ddd' }}>الحالة</th>
-            </tr>
-          </thead>
-          <tbody>
-            {payments.length === 0 ? (
-              <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px' }}>لا توجد بيانات حالياً</td></tr>
-            ) : (
-              payments.map((p, index) => (
-                <tr key={index}>
-                  <td style={{ padding: '10px', border: '1px solid #ddd' }}>{p.date}</td>
-                  <td style={{ padding: '10px', border: '1px solid #ddd' }}>{p.studentName || "طالب تجريبي"}</td>
-                  <td style={{ padding: '10px', border: '1px solid #ddd', color: '#f39c12' }}>قيد المراجعة</td>
+        {/* جدول الاشتراكات */}
+        <div style={{ background: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 2px 15px rgba(0,0,0,0.05)', gridColumn: '1 / -1' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '20px' }}>🔔 قائمة الطلاب المشتركين مؤخراً</h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+              <thead>
+                <tr style={{ background: '#f8f9fa', color: '#555' }}>
+                  <th style={{ padding: '15px', borderBottom: '2px solid #eee' }}>اسم الطالب</th>
+                  <th style={{ padding: '15px', borderBottom: '2px solid #eee' }}>المبلغ المدفوع</th>
+                  <th style={{ padding: '15px', borderBottom: '2px solid #eee' }}>تاريخ الاشتراك</th>
+                  <th style={{ padding: '15px', borderBottom: '2px solid #eee' }}>الحالة</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {payments.map((p) => (
+                  <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
+                    <td style={{ padding: '15px', fontWeight: '500' }}>{p.studentName || 'طالب مجهول'}</td>
+                    <td style={{ padding: '15px', color: '#2e7d32', fontWeight: 'bold' }}>{p.amount} دج</td>
+                    <td style={{ padding: '15px', color: '#666' }}>{new Date(p.createdAt).toLocaleDateString('ar-DZ')}</td>
+                    <td style={{ padding: '15px' }}><span style={{ background: '#e6f4ea', color: '#1e8e3e', padding: '5px 12px', borderRadius: '15px', fontSize: '13px' }}>تم الدفع</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
-    </div>
-    {/* Modal إضافة درس */}
+
+      {/* مودال رفع الدرس */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <div className="bg-[#1e1e1e] border border-gray-800 rounded-2xl w-full max-w-md p-6">
-             <h2 className="text-xl font-bold mb-4">إضافة درس جديد</h2>
-             <input type="text" placeholder="عنوان الدرس" className="w-full bg-[#252525] p-3 rounded mb-4 outline-none" onChange={(e)=>setLessonTitle(e.target.value)} />
-             <input type="file" accept="video/*" className="mb-4" onChange={(e)=>setVideoFile(e.target.files?.[0] || null)} />
-             {uploading && <div className="w-full bg-gray-700 h-1 mb-4"><div className="bg-dz-green h-full" style={{width: `${progress}%`}}></div></div>}
-             <button onClick={handleUploadLesson} className="w-full bg-dz-green text-black p-3 rounded font-bold">
-                {uploading ? `جاري الرفع ${Math.round(progress)}%` : "تأكيد الرفع"}
-             </button>
-             <button onClick={()=>setIsModalOpen(false)} className="w-full mt-2 text-gray-500">إلغاء</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+          <div style={{ background: '#fff', padding: '40px', borderRadius: '25px', width: '90%', maxWidth: '550px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+            <h2 style={{ marginBottom: '25px', color: '#1a73e8' }}>رفع محتوى تعليمي جديد</h2>
+            
+            <label style={{ display: 'block', marginBottom: '8px' }}>اختر الكورس المستهدف:</label>
+            <select value={selectedCourseId} onChange={(e) => setSelectedCourseId(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '10px', border: '1px solid #ddd' }}>
+              <option value="">-- اختر من كورساتك المتاحة --</option>
+              {courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+            </select>
+
+            <input type="text" placeholder="ما هو عنوان هذا الدرس؟" value={lessonTitle} onChange={(e) => setLessonTitle(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '10px', border: '1px solid #ddd' }} />
+            
+            <input type="file" accept="video/*" onChange={(e) => setVideoFile(e.target.files ? e.target.files[0] : null)} style={{ marginBottom: '25px', display: 'block' }} />
+            
+            {uploading && (
+              <div style={{ marginBottom: '20px' }}>
+                <p style={{ fontSize: '14px', marginBottom: '5px' }}>جاري المعالجة والرفع... {Math.round(progress)}%</p>
+                <div style={{ width: '100%', background: '#eee', borderRadius: '10px', height: '12px' }}>
+                  <div style={{ width: `${progress}%`, background: '#34a853', height: '100%', borderRadius: '10px', transition: 'width 0.3s' }}></div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '15px' }}>
+              <button onClick={handleUploadLesson} disabled={uploading} style={{ flex: 2, padding: '15px', background: '#34a853', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
+                {uploading ? 'يرجى الانتظار...' : 'بدء عملية الرفع'}
+              </button>
+              <button onClick={() => setIsModalOpen(false)} style={{ flex: 1, padding: '15px', background: '#ea4335', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>إلغاء</button>
+            </div>
           </div>
         </div>
       )}
+    </div>
   );
 };
 
