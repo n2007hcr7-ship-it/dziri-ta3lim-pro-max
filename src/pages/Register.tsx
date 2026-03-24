@@ -1,231 +1,186 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { useNavigate, Link } from 'react-router-dom';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { ref, set } from 'firebase/database'; // التعديل الجوهري هنا
 import { auth, db } from '../firebase';
-import { UserPlus, Mail, Lock, User, MapPin, Phone, GraduationCap, Briefcase, AlertCircle } from 'lucide-react';
-import { UserRole, EducationLevel } from '../types';
+import { UserPlus, Mail, Lock, User, MapPin, BookOpen, UserCircle } from 'lucide-react';
 
-const Register: React.FC = () => {
-  const [role, setRole] = useState<UserRole>('student');
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [wilaya, setWilaya] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [level, setLevel] = useState<EducationLevel>('secondary');
-  const [subject, setSubject] = useState('');
-  
+export default function Register() {
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    role: 'student' as 'student' | 'teacher',
+    city: '',
+    subject: ''
+  });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+
     try {
-      const { user } = await createUserWithEmailAndPassword(auth, email, password);
+      // 1. إنشاء الحساب (Firebase Auth)
+      const { user } = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       
-      const profileData: any = {
+      // 2. تحديث الاسم الشخصي
+      await updateProfile(user, { displayName: formData.username });
+
+      // 3. حفظ البيانات في Realtime Database (بدل Firestore المتعطل)
+      await set(ref(db, 'users/' + user.uid), {
         uid: user.uid,
-        fullName,
-        email,
-        role,
-        wilaya,
-        phoneNumber,
-        walletBalance: 0,
-        totalEarnings: 0,
-        premiumPackage: 'none',
-        rating: 0,
-        ratingCount: 0,
-        createdAt: new Date().toISOString(),
-      };
+        username: formData.username,
+        email: formData.email,
+        role: formData.role,
+        city: formData.city,
+        subject: formData.role === 'teacher' ? formData.subject : null,
+        createdAt: new Date().toISOString()
+      });
 
-      if (role === 'student') {
-        profileData.level = level;
-      } else {
-        profileData.subjects = [subject];
-      }
-
-      await setDoc(doc(db, 'users', user.uid), profileData);
-      navigate('/');
+      // 4. التوجيه التلقائي
+      navigate(formData.role === 'teacher' ? '/teacher-dashboard' : '/dashboard');
     } catch (err: any) {
-      setError('حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى.');
+      setError('حدث خطأ أثناء إنشاء الحساب. تأكد من بريدك الإلكتروني أو كلمة المرور.');
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto mt-8">
-      <div className="dz-card space-y-8">
-        <div className="text-center space-y-2">
-          <div className="w-16 h-16 bg-dz-green/10 text-dz-green rounded-2xl flex items-center justify-center mx-auto">
-            <UserPlus size={32} />
+    <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center p-4">
+      <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl w-full max-w-xl p-8">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 rounded-full mb-4">
+            <UserPlus className="w-8 h-8 text-indigo-600" />
           </div>
-          <h1 className="text-2xl font-bold">إنشاء حساب جديد</h1>
-          <p className="text-gray-500 text-sm">انضم إلى أكبر منصة تعليمية في الجزائر</p>
-        </div>
-
-        {/* Role Selector */}
-        <div className="flex p-1 bg-gray-100 rounded-2xl">
-          <button
-            onClick={() => setRole('student')}
-            className={`flex-1 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-              role === 'student' ? 'bg-white text-dz-green shadow-sm' : 'text-gray-500'
-            }`}
-          >
-            <GraduationCap size={20} />
-            تلميذ
-          </button>
-          <button
-            onClick={() => setRole('teacher')}
-            className={`flex-1 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-              role === 'teacher' ? 'bg-white text-dz-green shadow-sm' : 'text-gray-500'
-            }`}
-          >
-            <Briefcase size={20} />
-            أستاذ
-          </button>
+          <h1 className="text-3xl font-bold text-gray-900">إنشاء حساب جديد</h1>
+          <p className="text-gray-600 mt-2">انضم إلى منصة دزيري للتعليم</p>
         </div>
 
         {error && (
-          <div className="bg-dz-red/10 text-dz-red p-3 rounded-xl flex items-center gap-2 text-sm">
-            <AlertCircle size={18} />
+          <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6 flex items-center gap-2 animate-shake">
+            <div className="w-1.5 h-1.5 bg-red-600 rounded-full" />
             {error}
           </div>
         )}
 
-        <form onSubmit={handleRegister} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-1">
-            <label className="text-sm font-bold text-gray-700 mr-1">الاسم الكامل</label>
-            <div className="relative">
-              <User className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Username */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <User className="w-4 h-4" /> اسم المستخدم
+              </label>
               <input
-                type="text"
                 required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="dz-input pr-10"
-                placeholder="الاسم واللقب"
+                type="text"
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
               />
             </div>
-          </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-bold text-gray-700 mr-1">البريد الإلكتروني</label>
-            <div className="relative">
-              <Mail className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            {/* Email */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <Mail className="w-4 h-4" /> البريد الإلكتروني
+              </label>
               <input
+                required
                 type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="dz-input pr-10"
-                placeholder="example@mail.com"
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-bold text-gray-700 mr-1">الولاية</label>
-            <div className="relative">
-              <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <select
-                required
-                value={wilaya}
-                onChange={(e) => setWilaya(e.target.value)}
-                className="dz-input pr-10 appearance-none bg-white"
-              >
-                <option value="">اختر الولاية</option>
-                <option value="الجزائر">الجزائر</option>
-                <option value="وهران">وهران</option>
-                <option value="قسنطينة">قسنطينة</option>
-                {/* Add more wilayas */}
-              </select>
-            </div>
+          {/* Password */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <Lock className="w-4 h-4" /> كلمة المرور
+            </label>
+            <input
+              required
+              type="password"
+              className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-bold text-gray-700 mr-1">رقم الهاتف</label>
-            <div className="relative">
-              <Phone className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                type="tel"
-                required
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                className="dz-input pr-10"
-                placeholder="06XXXXXXXX"
-              />
-            </div>
-          </div>
-
-          {role === 'student' ? (
-            <div className="space-y-1">
-              <label className="text-sm font-bold text-gray-700 mr-1">المستوى الدراسي</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Role */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <UserCircle className="w-4 h-4" /> نوع الحساب
+              </label>
               <select
-                required
-                value={level}
-                onChange={(e) => setLevel(e.target.value as EducationLevel)}
-                className="dz-input bg-white"
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white"
+                value={formData.role}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value as 'student' | 'teacher' })}
               >
-                <option value="primary">ابتدائي</option>
-                <option value="middle">متوسط</option>
-                <option value="secondary">ثانوي</option>
-                <option value="university">جامعي</option>
+                <option value="student">طالب</option>
+                <option value="teacher">أستاذ</option>
               </select>
             </div>
-          ) : (
-            <div className="space-y-1">
-              <label className="text-sm font-bold text-gray-700 mr-1">المادة المدرسة</label>
+
+            {/* City */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <MapPin className="w-4 h-4" /> الولاية
+              </label>
               <input
+                required
                 type="text"
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                value={formData.city}
+                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+              />
+            </div>
+          </div>
+
+          {/* Subject (Only for Teachers) */}
+          {formData.role === 'teacher' && (
+            <div className="space-y-2 animate-slideDown">
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <BookOpen className="w-4 h-4" /> المادة المدرسة
+              </label>
+              <input
                 required
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                className="dz-input"
-                placeholder="مثال: رياضيات"
+                type="text"
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                value={formData.subject}
+                onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
               />
             </div>
           )}
 
-          <div className="space-y-1">
-            <label className="text-sm font-bold text-gray-700 mr-1">كلمة المرور</label>
-            <div className="relative">
-              <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="dz-input pr-10"
-                placeholder="••••••••"
-              />
-            </div>
-          </div>
-
-          <div className="md:col-span-2 pt-4">
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full dz-btn-primary py-3 flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {loading ? 'جاري إنشاء الحساب...' : 'إنشاء الحساب'}
-            </button>
-          </div>
+          <button
+            disabled={loading}
+            type="submit"
+            className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
+          >
+            {loading ? (
+              <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              'إنشاء الحساب'
+            )}
+          </button>
         </form>
 
-        <div className="text-center text-sm text-gray-500">
+        <div className="mt-6 text-center text-gray-600">
           لديك حساب بالفعل؟{' '}
-          <Link to="/login" className="text-dz-green font-bold hover:underline">
-            سجل دخولك
+          <Link to="/login" className="text-indigo-600 font-semibold hover:underline">
+            تسجيل الدخول
           </Link>
         </div>
       </div>
     </div>
   );
-};
-
-export default Register;
+}
